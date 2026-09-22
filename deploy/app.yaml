@@ -1,0 +1,33 @@
+name: url-shortener
+region: nyc
+
+services:
+  - name: api
+    environment_slug: python
+    source_dir: /
+
+    run_command: >
+      uvicorn src.app.main:app
+      --host 0.0.0.0
+      --port 8080
+
+    http_port: 8080
+    instance_count: 1
+    instance_size_slug: basic-xxs
+
+    health_check:
+      http_path: /health
+
+    envs:
+      - key: APP_NAME
+        scope: RUN_TIME
+        value: URL Shortener
+
+      - key: ENVIRONMENT
+        scope: RUN_TIME
+        value: production
+
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        type: SECRET
+        value: ""
