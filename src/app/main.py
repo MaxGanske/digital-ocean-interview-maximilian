@@ -8,7 +8,6 @@ from src.app.db.session import engine
 
 app = FastAPI(title=settings.app_name)
 
-
 app.include_router(urls_router)
 
 

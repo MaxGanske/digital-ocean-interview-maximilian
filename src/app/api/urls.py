@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from src.app.db.session import get_db
 from src.app.schemas import ShortURLCreate, ShortURLResponse
+from src.app import services
 
 
 router = APIRouter(
@@ -20,19 +22,32 @@ def create_short_url(
     payload: ShortURLCreate,
     db: Session = Depends(get_db),
 ):
-    """
-    TODO:
-    1. Validate the request.
-    2. Generate an alias if one was not provided.
-    3. Make sure the alias is unique.
-    4. Save the URL to PostgreSQL.
-    5. Return the created URL.
-    """
+    # If the user provided a custom alias, make sure it is available.
+    if payload.custom_alias:
+        existing_url = services.get_url_by_alias(
+            db,
+            payload.custom_alias,
+        )
 
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="URL creation not implemented yet",
-    )
+        if existing_url:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Alias already exists",
+            )
+
+    try:
+        short_url = services.create_short_url(
+            db,
+            payload,
+        )
+
+        return short_url
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
 
 
 @router.get(
@@ -43,17 +58,18 @@ def get_url_metadata(
     alias: str,
     db: Session = Depends(get_db),
 ):
-    """
-    TODO:
-    1. Find URL by alias.
-    2. Return 404 if it does not exist.
-    3. Return metadata.
-    """
-
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Metadata lookup not implemented yet",
+    short_url = services.get_url_by_alias(
+        db,
+        alias,
     )
+
+    if not short_url:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Short URL not found",
+        )
+
+    return short_url
 
 
 @router.get("/{alias}")
@@ -61,15 +77,24 @@ def redirect_alias(
     alias: str,
     db: Session = Depends(get_db),
 ):
-    """
-    TODO:
-    1. Find the URL by alias.
-    2. Return 404 if it does not exist.
-    3. Increment the click count.
-    4. Redirect the user to the target URL.
-    """
+    short_url = services.get_url_by_alias(
+        db,
+        alias,
+    )
 
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Redirect not implemented yet",
+    if not short_url:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Short URL not found",
+        )
+
+    # Increment click count before redirecting.
+    services.record_click(
+        db,
+        alias,
+    )
+
+    return RedirectResponse(
+        url=short_url.target_url,
+        status_code=status.HTTP_302_FOUND,
     )
