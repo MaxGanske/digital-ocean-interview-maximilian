@@ -6,9 +6,9 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from src.app import services
-from src.app.api.urls import router
 from src.app.db.models import ShortURL
 from src.app.db.session import get_db
+from src.app.api.urls import router
 
 
 app = FastAPI()
@@ -66,7 +66,7 @@ def test_create_short_url_with_custom_alias(
     )
 
     response = client.post(
-        "/api/shorten",
+        "/urls/shorten",
         json={
             "target_url": "https://example.com",
             "custom_alias": "example",
@@ -80,6 +80,7 @@ def test_create_short_url_with_custom_alias(
     assert data["id"] == 1
     assert data["alias"] == "example"
     assert data["target_url"] == "https://example.com/"
+    assert data["short_url"] == "http://testserver/urls/example"
     assert data["click_count"] == 0
     assert data["created_at"] is not None
 
@@ -98,19 +99,23 @@ def test_create_short_url_without_custom_alias(
     )
 
     response = client.post(
-        "/api/shorten",
+        "/urls/shorten",
         json={
             "target_url": "https://example.com",
         },
     )
 
     assert response.status_code == 201
-    assert response.json()["alias"] == "abc1234"
+
+    data = response.json()
+
+    assert data["alias"] == "abc1234"
+    assert data["short_url"] == "http://testserver/urls/abc1234"
 
 
 def test_create_short_url_invalid_url():
     response = client.post(
-        "/api/shorten",
+        "/urls/shorten",
         json={
             "target_url": "not-a-url",
         },
@@ -121,7 +126,7 @@ def test_create_short_url_invalid_url():
 
 def test_create_short_url_missing_target_url():
     response = client.post(
-        "/api/shorten",
+        "/urls/shorten",
         json={},
     )
 
@@ -130,7 +135,7 @@ def test_create_short_url_missing_target_url():
 
 def test_custom_alias_too_short():
     response = client.post(
-        "/api/shorten",
+        "/urls/shorten",
         json={
             "target_url": "https://example.com",
             "custom_alias": "ab",
@@ -142,10 +147,22 @@ def test_custom_alias_too_short():
 
 def test_custom_alias_too_long():
     response = client.post(
-        "/api/shorten",
+        "/urls/shorten",
         json={
             "target_url": "https://example.com",
             "custom_alias": "a" * 33,
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_custom_alias_invalid_characters():
+    response = client.post(
+        "/urls/shorten",
+        json={
+            "target_url": "https://example.com",
+            "custom_alias": "hello world",
         },
     )
 
@@ -164,7 +181,7 @@ def test_duplicate_alias_returns_409(
     )
 
     response = client.post(
-        "/api/shorten",
+        "/urls/shorten",
         json={
             "target_url": "https://example.com",
             "custom_alias": "example",
@@ -192,7 +209,7 @@ def test_service_value_error_returns_400(
     )
 
     response = client.post(
-        "/api/shorten",
+        "/urls/shorten",
         json={
             "target_url": "https://example.com",
         },
@@ -219,7 +236,7 @@ def test_get_url_metadata(
     )
 
     response = client.get(
-        "/api/meta/example",
+        "/urls/meta/example",
     )
 
     assert response.status_code == 200
@@ -228,6 +245,7 @@ def test_get_url_metadata(
 
     assert data["alias"] == "example"
     assert data["target_url"] == "https://example.com/"
+    assert data["short_url"] == "http://testserver/urls/example"
     assert data["click_count"] == 3
 
 
@@ -241,7 +259,7 @@ def test_get_url_metadata_missing_returns_404(
     )
 
     response = client.get(
-        "/api/meta/missing",
+        "/urls/meta/missing",
     )
 
     assert response.status_code == 404
@@ -269,7 +287,7 @@ def test_redirect_returns_302(
     )
 
     response = client.get(
-        "/api/example",
+        "/urls/example",
         follow_redirects=False,
     )
 
@@ -291,7 +309,7 @@ def test_redirect_missing_alias_returns_404(
     )
 
     response = client.get(
-        "/api/missing",
+        "/urls/missing",
         follow_redirects=False,
     )
 
@@ -324,7 +342,7 @@ def test_redirect_records_click(
     )
 
     response = client.get(
-        "/api/example",
+        "/urls/example",
         follow_redirects=False,
     )
 
@@ -356,7 +374,7 @@ def test_metadata_does_not_record_click(
     )
 
     response = client.get(
-        "/api/meta/example",
+        "/urls/meta/example",
     )
 
     assert response.status_code == 200

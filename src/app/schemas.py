@@ -22,5 +22,6 @@ class ShortURLResponse(BaseModel):
     id: int
     alias: str
     target_url: str
+    short_url: str
     click_count: int
     created_at: datetime

@@ -1,16 +1,42 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
+from src.app import services
 from src.app.db.session import get_db
 from src.app.schemas import ShortURLCreate, ShortURLResponse
-from src.app import services
 
 
 router = APIRouter(
-    prefix="/api",
+    prefix="/urls",
     tags=["urls"],
 )
+
+
+def build_short_url_response(
+    short_url,
+    request: Request,
+):
+    """
+    Convert a ShortURL database model into the API response.
+
+    The short_url field contains the full public URL that users
+    can visit to be redirected to the original target URL.
+    """
+
+    return {
+        "id": short_url.id,
+        "alias": short_url.alias,
+        "target_url": short_url.target_url,
+        "short_url": str(
+            request.url_for(
+                "redirect_alias",
+                alias=short_url.alias,
+            )
+        ),
+        "click_count": short_url.click_count,
+        "created_at": short_url.created_at,
+    }
 
 
 @router.post(
@@ -20,9 +46,10 @@ router = APIRouter(
 )
 def create_short_url(
     payload: ShortURLCreate,
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    # If the user provided a custom alias, make sure it is available.
+    # If a custom alias was supplied, make sure it is available.
     if payload.custom_alias:
         existing_url = services.get_url_by_alias(
             db,
@@ -41,7 +68,10 @@ def create_short_url(
             payload,
         )
 
-        return short_url
+        return build_short_url_response(
+            short_url,
+            request,
+        )
 
     except ValueError as exc:
         raise HTTPException(
@@ -56,6 +86,7 @@ def create_short_url(
 )
 def get_url_metadata(
     alias: str,
+    request: Request,
     db: Session = Depends(get_db),
 ):
     short_url = services.get_url_by_alias(
@@ -69,10 +100,16 @@ def get_url_metadata(
             detail="Short URL not found",
         )
 
-    return short_url
+    return build_short_url_response(
+        short_url,
+        request,
+    )
 
 
-@router.get("/{alias}")
+@router.get(
+    "/{alias}",
+    status_code=status.HTTP_302_FOUND,
+)
 def redirect_alias(
     alias: str,
     db: Session = Depends(get_db),
@@ -88,7 +125,7 @@ def redirect_alias(
             detail="Short URL not found",
         )
 
-    # Increment click count before redirecting.
+    # Record the visit before redirecting.
     services.record_click(
         db,
         alias,

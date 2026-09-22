@@ -1,23 +1,40 @@
-URL Shortener REST API Service
+# URL Shortener
 
-Tech stack python/fastAPI
+## Core requirements
 
-We will be connecting our service to a postgresql db in digital ocean where we will also be deploying our app there
+Users can create shortened URLs.
 
-Build a production-ready REST API Service that accepts a long URL, generates a shortened URL (alias), redirects users to the original URL, and returns metadata about the created short links
+A shortened URL contains:
 
-Bitly clone
+- Target URL
+- Unique alias
+- Full shortened URL
+- Creation time
+- Click count
 
-Functional requirements:
-User sends a long URL and we generate a unique shortened URL
-Support either automatically generated short codes or user-defined custom aliases (ensure proper validation)
-Redirect user to the original URL when the shortened link is accessed
-Return metadata about the shortened URL and allow the retrieval of metadata for an existing short URL
+Users may optionally provide a custom alias.
 
-Out of scope:
-User sign up
-UI
-Database migration
+If the user does not provide an alias, the application generates one.
+
+Aliases must be unique.
+
+Visiting a shortened URL redirects the user to the original URL.
+
+Each redirect increments the click count.
+
+Users can retrieve metadata about a shortened URL.
 
 
+## API
 
+### POST /urls/shorten
+
+Create a shortened URL.
+
+Example request:
+
+```json
+{
+  "target_url": "https://example.com/some/long/path",
+  "custom_alias": "example"
+}
