@@ -1,16 +1,21 @@
-"""Configuration placeholders for the application under `src/app`.
-
-Use `pydantic.BaseSettings` to load from environment variables in future.
-"""
-
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    app_name: str = "url-shortener"
-    debug: bool = True
-    # Database URL for SQLAlchemy / Alembic. In production set via env var.
-    database_url: str = "postgresql://user:password@localhost:5432/url_shortener"
+    app_name: str = "URL Shortener"
+
+    environment: str = "development"
+
+    database_url: str = (
+        "postgresql+psycopg://"
+        "postgres:postgres@localhost:5432/url_shortener"
+    )
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
 
 settings = Settings()

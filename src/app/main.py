@@ -1,16 +1,28 @@
-"""FastAPI application entrypoint (skeleton) located in `src/app`."""
-
 from fastapi import FastAPI
-from .api.routes import router as api_router
+from sqlalchemy import text
 
-app = FastAPI(title="URL Shortener (skeleton)")
-
-
-@app.get("/")
-def root():
-    """Health / placeholder endpoint."""
-    return {"status": "skeleton", "message": "Implement API endpoints in src.app.api"}
+from src.app.api.urls import router as urls_router
+from src.app.core.config import settings
+from src.app.db.session import engine
 
 
-# include API routes (skeleton)
-app.include_router(api_router)
+app = FastAPI(title=settings.app_name)
+
+
+app.include_router(urls_router)
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+
+@app.get("/health/db")
+def health_db():
+    with engine.connect() as connection:
+        connection.execute(text("SELECT 1"))
+
+    return {
+        "status": "ok",
+        "database": "connected",
+    }
