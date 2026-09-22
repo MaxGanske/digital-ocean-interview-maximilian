@@ -10,6 +10,7 @@ class ShortURLCreate(BaseModel):
         default=None,
         min_length=3,
         max_length=32,
+        pattern=r"^[A-Za-z0-9_-]+$",
     )
 
 
