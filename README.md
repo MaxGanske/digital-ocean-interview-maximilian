@@ -1,73 +1,464 @@
-# URL Shortener (FastAPI) — Skeleton
+# URL Shortener (FastAPI)
 
-This repository contains a compact interview-ready skeleton for a URL shortening API built with FastAPI, SQLAlchemy and PostgreSQL.
+A URL shortening API built with **FastAPI, SQLAlchemy, and PostgreSQL**.
 
-Next steps:
-- Implement persistence (Postgres, Redis, or SQLite) and migrations.
-- Implement short-code generation and custom alias handling.
-- Add redirect endpoint and metadata endpoints.
-- Add tests, CI, and Docker packaging.
+The application lets users submit a long URL and receive a shorter URL backed by a unique alias. Users may optionally provide their own custom alias. Visiting the shortened URL redirects to the original URL and increments its click count.
 
-Run (development):
+### Creating a shortened URL
 
-Project layout (important paths):
+```text
+POST /urls/shorten
+        ↓
+Pydantic validates request
+        ↓
+API route
+        ↓
+Service layer
+        ↓
+Use custom alias OR generate random alias
+        ↓
+Check alias uniqueness
+        ↓
+Save URL mapping to PostgreSQL
+        ↓
+Return shortened URL
+```
 
-- [src/app/main.py](src/app/main.py#L1) — FastAPI application entrypoint
-- [src/app/api/urls.py](src/app/api/urls.py#L1) — API route stubs
-- [src/app/services.py](src/app/services.py#L1) — business/service layer (TODO)
-- [src/app/schemas.py](src/app/schemas.py#L1) — Pydantic request/response models
-- [src/app/core/config.py](src/app/core/config.py#L1) — configuration (pydantic-settings)
-- [src/app/db/session.py](src/app/db/session.py#L1) — SQLAlchemy engine / session
-- [src/app/db/models.py](src/app/db/models.py#L1) — ORM models
-- [tests/](tests/) — basic test scaffolding
+Example request:
 
-Local development
+```json
+{
+  "target_url": "https://www.example.com/some/really/long/path"
+}
+```
 
-1. Copy the example env file (keeps secrets out of VCS):
+Example response:
+
+```json
+{
+  "id": 1,
+  "alias": "a7KpQ2x",
+  "target_url": "https://www.example.com/some/really/long/path",
+  "short_url": "https://your-app.com/urls/a7KpQ2x",
+  "click_count": 0,
+  "created_at": "2026-09-22T21:51:28.776676Z"
+}
+```
+
+A custom alias can also be supplied:
+
+```json
+{
+  "target_url": "https://www.example.com/some/really/long/path",
+  "custom_alias": "example"
+}
+```
+
+### Redirecting a shortened URL
+
+```text
+GET /urls/{alias}
+        ↓
+Find alias in PostgreSQL
+        ↓
+Increment click count
+        ↓
+302 Redirect
+        ↓
+Original URL
+```
+
+For example:
+
+```text
+GET /urls/a7KpQ2x
+```
+
+redirects to:
+
+```text
+https://www.example.com/some/really/long/path
+```
+
+### Retrieving metadata
+
+```text
+GET /urls/meta/{alias}
+```
+
+Returns information including:
+
+* Alias
+* Original target URL
+* Full shortened URL
+* Click count
+* Creation time
+
+## Project Structure
+
+```text
+src/
+└── app/
+    ├── main.py
+    ├── schemas.py
+    ├── services.py
+    │
+    ├── api/
+    │   └── urls.py
+    │
+    ├── core/
+    │   └── config.py
+    │
+    └── db/
+        ├── models.py
+        └── session.py
+
+tests/
+├── test_health.py
+├── test_services.py
+└── test_urls.py
+
+.github/
+└── workflows/
+    └── ci.yml
+
+.env.example
+compose.yml
+requirements.txt
+pyproject.toml
+requirements.md
+runtime.txt
+README.md
+```
+
+## Important Files
+
+* `src/app/main.py`
+
+  * FastAPI application entry point
+  * Registers the URL router
+  * Provides application and database health checks
+
+* `src/app/api/urls.py`
+
+  * Defines the URL-shortening HTTP endpoints
+  * Handles HTTP responses, validation errors, redirects, and status codes
+
+* `src/app/services.py`
+
+  * Contains the main business logic
+  * Generates aliases
+  * Checks alias uniqueness
+  * Creates shortened URLs
+  * Looks up aliases
+  * Records clicks
+
+* `src/app/schemas.py`
+
+  * Defines Pydantic request and response models
+  * Validates target URLs and custom aliases
+
+* `src/app/db/models.py`
+
+  * Defines the SQLAlchemy `ShortURL` database model
+
+* `src/app/db/session.py`
+
+  * Creates the SQLAlchemy engine
+  * Creates database sessions
+  * Provides the FastAPI `get_db()` dependency
+
+* `src/app/core/config.py`
+
+  * Reads configuration from environment variables
+  * Provides application and database settings
+
+* `tests/test_services.py`
+
+  * Unit tests for service/business logic
+  * Uses mocked database sessions rather than a real database
+
+* `tests/test_urls.py`
+
+  * Unit tests for API behavior
+  * Tests validation, status codes, redirects, and service interactions
+
+* `.github/workflows/ci.yml`
+
+  * Runs linting and tests automatically through GitHub Actions
+
+## API Endpoints
+
+### Create Short URL
+
+```text
+POST /urls/shorten
+```
+
+Request:
+
+```json
+{
+  "target_url": "https://example.com",
+  "custom_alias": "example"
+}
+```
+
+`custom_alias` is optional. If it is not supplied, the application automatically generates an alias.
+
+### Redirect
+
+```text
+GET /urls/{alias}
+```
+
+Looks up the alias, increments its click count, and returns a `302` redirect to the original URL.
+
+### URL Metadata
+
+```text
+GET /urls/meta/{alias}
+```
+
+Returns the URL's stored metadata.
+
+### Application Health
+
+```text
+GET /health
+```
+
+Expected response:
+
+```json
+{
+  "status": "ok"
+}
+```
+
+### Database Health
+
+```text
+GET /health/db
+```
+
+Runs a simple database query to verify connectivity.
+
+Expected response:
+
+```json
+{
+  "status": "ok",
+  "database": "connected"
+}
+```
+
+## Local Development
+
+### 1. Create the environment file
 
 ```bash
 cp .env.example .env
 ```
 
-2. Start Postgres (OrbStack / Docker Compose):
+The default local configuration is:
 
-```bash
-docker compose up -d postgres
+```env
+APP_NAME=URL Shortener
+ENVIRONMENT=development
+DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/url_shortener
 ```
 
-3. Install dependencies (Poetry):
+Do not commit the real `.env` file.
+
+### 2. Start PostgreSQL
+
+The repository includes `compose.yml` for running PostgreSQL locally with Docker or OrbStack.
 
 ```bash
-poetry install
+docker compose up -d
 ```
 
-4. Run the API locally:
+Verify the container is running:
 
 ```bash
-poetry run uvicorn src.app.main:app --reload --port 8000
+docker compose ps
 ```
 
-5. Run tests:
+### 3. Install dependencies
 
 ```bash
-poetry run pytest -q
+pip install -r requirements.txt
 ```
 
-Health checks
+### 4. Run the API
 
-- Application: `GET /health` — returns `{"status": "ok"}`
-- Database: `GET /health/db` — runs a `SELECT 1` against the configured DB
+```bash
+python -m uvicorn src.app.main:app --reload --port 8000
+```
 
-Notes and small fixes applied
+The API is available at:
 
-- Paths updated to `src/app/` (previous README referenced older `app/` paths).
-- `compose.yml` is the Compose file in the repo (README references `docker compose` which is compatible).
-- `pydantic-settings` is used in `src/app/core/config.py` to support Pydantic v2 settings.
-- No `.pre-commit-config.yaml` was found in the repo so no pre-commit changes were required.
+```text
+http://localhost:8000
+```
 
-What to do next (suggested)
+Swagger documentation:
 
-- Implement the create/redirect flow in `src/app/services.py` and wire it through `src/app/api/urls.py`.
-- Add migrations (Alembic) if you want persisted schema evolution.
+```text
+http://localhost:8000/docs
+```
 
-That's it — the skeleton is ready for the interview workflow: implement the TODOs in `services.py` and `urls.py`.
+OpenAPI specification:
+
+```text
+http://localhost:8000/openapi.json
+```
+
+### 5. Run tests
+
+```bash
+python -m pytest -v
+```
+
+The unit tests do not require a live PostgreSQL database because the service and route dependencies are mocked.
+
+### 6. Run linting
+
+```bash
+ruff check .
+```
+
+### 7. Stop local PostgreSQL
+
+```bash
+docker compose down
+```
+
+To also delete the local database volume:
+
+```bash
+docker compose down -v
+```
+
+## Testing
+
+The project separates tests by application layer.
+
+### Service Tests
+
+`tests/test_services.py` tests:
+
+* Alias generation
+* Alias lookup
+* Custom aliases
+* Automatically generated aliases
+* Alias collisions
+* Duplicate aliases
+* Transaction rollback behavior
+* Click counting
+* Missing aliases
+
+Database behavior is mocked so these remain fast unit tests.
+
+### API Tests
+
+`tests/test_urls.py` tests:
+
+* Successful URL creation
+* Automatic alias creation
+* Invalid URLs
+* Invalid custom aliases
+* Duplicate aliases
+* Metadata retrieval
+* Missing aliases
+* Redirect responses
+* Click recording
+* HTTP status codes
+
+The real FastAPI routes are exercised while the service layer is mocked.
+
+## Continuous Integration
+
+GitHub Actions runs CI on pushes and pull requests.
+
+The workflow:
+
+```text
+Checkout repository
+        ↓
+Set up Python
+        ↓
+Install requirements.txt
+        ↓
+Run Ruff
+        ↓
+Run pytest
+```
+
+Because the tests use mocks, CI does not need to start a PostgreSQL service.
+
+## DigitalOcean Deployment
+
+The application can be deployed as a **Web Service** on DigitalOcean App Platform.
+
+### Run Command
+
+```bash
+uvicorn src.app.main:app --host 0.0.0.0 --port 8080
+```
+
+### HTTP Port
+
+```text
+8080
+```
+
+### Environment Variables
+
+Production configuration should be provided through DigitalOcean App Platform rather than committed to the repository.
+
+Example:
+
+```text
+APP_NAME=URL Shortener
+ENVIRONMENT=production
+DATABASE_URL=<DigitalOcean PostgreSQL connection string>
+```
+
+The local `localhost:5432` database URL should not be used in DigitalOcean.
+
+### Database
+
+Attach a PostgreSQL database to the App Platform application and configure `DATABASE_URL` to point to it.
+
+The deployed architecture is:
+
+```text
+Client
+  ↓
+DigitalOcean App Platform
+  ↓
+FastAPI / Uvicorn
+  ↓
+SQLAlchemy
+  ↓
+DigitalOcean PostgreSQL
+```
+
+## Scope
+
+The current implementation intentionally keeps the architecture simple and focused.
+
+Out of scope:
+
+* Authentication
+* User accounts
+* Redis caching
+* Microservices
+* Distributed alias generation
+* Rate limiting
+* URL expiration
+* Advanced analytics
+
+These could be introduced later if scale or product requirements justified them.
